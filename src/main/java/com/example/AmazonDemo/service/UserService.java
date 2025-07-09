@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Optional;
 
 @Service
@@ -53,18 +54,48 @@ public class UserService {
     }
 
 
-    public void createBranchAndPullCodeFromRepo(String repoLink,String branchName,String fileName) throws GitAPIException {
+    public void createBranchAndPullCodeFromRepo(String repoLink, String branchName, String fileName) throws GitAPIException {
         Git git = Git.cloneRepository()
                 .setURI(repoLink)
                 .setDirectory(new File(fileName))
+                .setBranch("master") // or "master" if your repo uses master
                 .call();
 
-        git.checkout().setName("dev").call();
-        git.pull().call();
+        // Make sure the repo is up-to-date
+        git.pull()
+                .setRemote("origin")
+                .setRemoteBranchName("master")
+                .call();
 
-//        String branchName = "feature/JIRA-123-remove-flag";
-        git.checkout().setCreateBranch(true).setName(branchName).call();
+        // Create and checkout the new branch based on main
+        git.checkout()
+                .setCreateBranch(true)
+                .setName(branchName)
+                .setStartPoint("origin/master")
+                .call();
+
+        boolean branchExists = git.branchList().call().stream()
+                .anyMatch(ref -> ref.getName().endsWith("/" + branchName));
+
+        if (branchExists) {
+            System.out.println("Branch " + branchName + " was created.");
+            String projectPath = new File(fileName).getAbsolutePath();
+
+            try {
+                // Adjust path to IntelliJ if not in system PATH
+                String command = "cmd.exe /c start idea \"" + projectPath + "\"";
+                Runtime.getRuntime().exec(command);
+                System.out.println("Opened IntelliJ IDEA in: " + projectPath);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        } else {
+            System.out.println("Branch " + branchName + " was NOT created.");
+        }
+
 
         System.out.println("Created and switched to branch: " + branchName);
     }
+
 }
